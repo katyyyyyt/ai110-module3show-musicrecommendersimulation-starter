@@ -13,7 +13,10 @@ from recommender import load_songs, recommend_songs
 
 
 def main() -> None:
-    songs = load_songs("data/songs.csv") 
+    songs = load_songs("data/songs.csv")
+
+    # Confirm the CSV loaded by printing how many songs we have.
+    print(f"Loaded songs: {len(songs)}")
 
     # Starter example profile
     user_prefs = {"genre": "pop", "mood": "happy", "energy": 0.8}
