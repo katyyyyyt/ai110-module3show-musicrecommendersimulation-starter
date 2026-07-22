@@ -58,8 +58,8 @@ FLOAT_FIELDS = ["energy", "tempo_bpm", "valence", "danceability", "acousticness"
 # Defined once at module level so they are not rebuilt on every score_song()
 # call, and so they live in one obvious place if you want to tune them.
 MOOD_POINTS = 35
-GENRE_POINTS = 30
-ENERGY_POINTS = 25
+GENRE_POINTS = 15   # experiment: halved (was 30)
+ENERGY_POINTS = 50  # experiment: doubled (was 25)
 ACOUSTIC_POINTS = 10
 
 # A song counts as "acoustic" at or above this acousticness value.

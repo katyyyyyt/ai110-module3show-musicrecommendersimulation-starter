@@ -138,6 +138,161 @@ example profile `genre=pop, mood=happy, energy=0.8`:
 
 ---
 
+## Adversarial / Edge-Case Testing
+
+To stress-test the scoring logic, I ran ten "adversarial" profiles designed to
+trick the scorer or expose unexpected behavior. Each block below is real
+terminal output showing the top 5 (`score  title  (genre/mood, energy)`).
+
+**1a. Conflicting mood vs. energy** — asks for a `sad` mood (which no song has)
+at high energy `0.9`. Mood scores 0 for everyone, so energy quietly drives the
+list toward aggressive tracks:
+
+```
+1a. conflicting: pop/sad/0.9
+  prefs = {'genre': 'pop', 'mood': 'sad', 'energy': 0.9}
+------------------------------------------------------------
+  1.  54.25  Gym Hero               (pop/intense, e=0.93)
+  2.  53.00  Sunrise City           (pop/happy, e=0.82)
+  3.  24.75  Storm Runner           (rock/intense, e=0.91)
+  4.  24.00  Red Red                (k-pop/energetic, e=0.86)
+  5.  23.75  Neon Overdrive         (edm/euphoric, e=0.95)
+```
+
+**1b. Physically incompatible preferences** — `chill` + acoustic + high energy
+`0.95` can't all be satisfied (chill/acoustic songs are all low-energy). Mood
+(35) + acoustic (10) outweigh energy (25), so the loud energy preference loses:
+
+```
+1b. incompatible: chill/0.95/acoustic
+  prefs = {'mood': 'chill', 'energy': 0.95, 'likes_acoustic': True}
+------------------------------------------------------------
+  1.  56.75  Midnight Coding        (lofi/chill, e=0.42)
+  2.  55.00  Library Rain           (lofi/chill, e=0.35)
+  3.  53.25  Spacewalk Thoughts     (ambient/chill, e=0.28)
+  4.  25.75  Dust and Diesel        (country/nostalgic, e=0.58)
+  5.  25.00  Neon Overdrive         (edm/euphoric, e=0.95)
+```
+
+**2. Values that don't exist in the catalog** — unmatched genre/mood contribute
+nothing, so the result is identical to profile 3a (energy-only). The system
+can't tell a specific-but-impossible request from a blank one:
+
+```
+2.  nonexistent: polka/triumphant/0.5
+  prefs = {'genre': 'polka', 'mood': 'triumphant', 'energy': 0.5}
+------------------------------------------------------------
+  1.  24.50  A Boy                  (k-pop/dreamy, e=0.52)
+  2.  24.50  Slow Burn Letters      (r&b/romantic, e=0.48)
+  3.  23.75  Island Time            (reggae/laidback, e=0.55)
+  4.  23.00  Dust and Diesel        (country/nostalgic, e=0.58)
+  5.  23.00  Midnight Coding        (lofi/chill, e=0.42)
+```
+
+**3a. Energy-only, midpoint 0.5** — with no genre/mood, everything scores only
+on energy closeness and ties are broken by energy gap, then title:
+
+```
+3a. energy only 0.5
+  prefs = {'energy': 0.5}
+------------------------------------------------------------
+  1.  24.50  A Boy                  (k-pop/dreamy, e=0.52)
+  2.  24.50  Slow Burn Letters      (r&b/romantic, e=0.48)
+  3.  23.75  Island Time            (reggae/laidback, e=0.55)
+  4.  23.00  Dust and Diesel        (country/nostalgic, e=0.58)
+  5.  23.00  Midnight Coding        (lofi/chill, e=0.42)
+```
+
+**3b. Energy-only, 0.635** — a tiny input change (0.5 → 0.635) completely
+reshuffles the ranking and flips the leader, showing how fragile the ordering
+is when energy is the only active signal:
+
+```
+3b. energy only 0.635
+  prefs = {'energy': 0.635}
+------------------------------------------------------------
+  1.  23.62  Dust and Diesel        (country/nostalgic, e=0.58)
+  2.  22.88  Island Time            (reggae/laidback, e=0.55)
+  3.  22.38  Concrete Kings         (hip-hop/confident, e=0.74)
+  4.  22.12  A Boy                  (k-pop/dreamy, e=0.52)
+  5.  22.12  Night Drive Loop       (synthwave/moody, e=0.75)
+```
+
+**4a. Out-of-range energy 5.0** — the energy term goes negative and is clamped
+to 0 for *every* song, so the whole energy signal is silently zeroed and only
+genre points survive (no warning):
+
+```
+4a. out-of-range energy 5.0
+  prefs = {'genre': 'pop', 'energy': 5.0}
+------------------------------------------------------------
+  1.  30.00  Gym Hero               (pop/intense, e=0.93)
+  2.  30.00  Sunrise City           (pop/happy, e=0.82)
+  3.   0.00  Iron Verdict           (metal/aggressive, e=0.97)
+  4.   0.00  Neon Overdrive         (edm/euphoric, e=0.95)
+  5.   0.00  Storm Runner           (rock/intense, e=0.91)
+```
+
+**4b. Wrong-type energy `"high"`** — a non-numeric energy value crashes the run.
+The guard checks for `None` but not for a numeric type (**confirmed bug**):
+
+```
+4b. wrong-type energy 'high'
+  prefs = {'genre': 'pop', 'energy': 'high'}
+------------------------------------------------------------
+  !!! CRASHED: TypeError: unsupported operand type(s) for -: 'str' and 'float'
+```
+
+**5a. Whitespace / case normalization** — `"  POP "` and `"HAPPY"` still match
+correctly, confirming the scorer trims and lowercases text (good control):
+
+```
+5a. whitespace/case '  POP '/'HAPPY'
+  prefs = {'genre': '  POP ', 'mood': 'HAPPY'}
+------------------------------------------------------------
+  1.  65.00  Sunrise City           (pop/happy, e=0.82)
+  2.  35.00  Rooftop Lights         (indie pop/happy, e=0.76)
+  3.  30.00  Gym Hero               (pop/intense, e=0.93)
+  4.   0.00  A Boy                  (k-pop/dreamy, e=0.52)
+  5.   0.00  Coffee Shop Stories    (jazz/relaxed, e=0.37)
+```
+
+**5b. `likes_acoustic` as the string `"yes"`** — the acoustic points never award
+because a string is compared to a boolean, so the opted-in user gets the same
+all-zero result as an empty profile (**confirmed bug**):
+
+```
+5b. likes_acoustic 'yes' (string)
+  prefs = {'likes_acoustic': 'yes'}
+------------------------------------------------------------
+  1.   0.00  A Boy                  (k-pop/dreamy, e=0.52)
+  2.   0.00  Coffee Shop Stories    (jazz/relaxed, e=0.37)
+  3.   0.00  Concrete Kings         (hip-hop/confident, e=0.74)
+  4.   0.00  Dust and Diesel        (country/nostalgic, e=0.58)
+  5.   0.00  Focus Flow             (lofi/focused, e=0.4)
+```
+
+**6. Empty profile** — no preferences at all: every song scores 0 and the list
+falls back to alphabetical-by-title without crashing (graceful degradation):
+
+```
+6.  empty profile
+  prefs = {}
+------------------------------------------------------------
+  1.   0.00  A Boy                  (k-pop/dreamy, e=0.52)
+  2.   0.00  Coffee Shop Stories    (jazz/relaxed, e=0.37)
+  3.   0.00  Concrete Kings         (hip-hop/confident, e=0.74)
+  4.   0.00  Dust and Diesel        (country/nostalgic, e=0.58)
+  5.   0.00  Focus Flow             (lofi/focused, e=0.4)
+```
+
+**Takeaways:** three profiles exposed genuine defects — `energy: "high"` crashes
+(4b), `likes_acoustic: "yes"` is silently ignored (5b), and an out-of-range
+energy silently zeroes the energy signal (4a). The rest produce valid but
+sometimes counter-intuitive rankings when a stated preference matches nothing.
+
+---
+
 ## Experiments You Tried
 
 Use this section to document the experiments you ran. For example:

@@ -61,14 +61,7 @@ Prompts:
 
 ## 6. Limitations and Bias 
 
-Where the system struggles or behaves unfairly. 
-
-Prompts:  
-
-- Features it does not consider  
-- Genres or moods that are underrepresented  
-- Cases where the system overfits to one preference  
-- Ways the scoring might unintentionally favor some users  
+The biggest weakness I found is that the **energy score gives partial credit to almost every song**, so a song can rank near the top without matching the user's genre or mood at all. Energy is scored as `points × (1 − |your energy − song energy|)`, which means any song whose energy is merely *close* to the target still earns most of those points. In my weight experiment (energy doubled to 50, genre halved to 15), "Velvet Groove" landed at #4 with a score of 50 for the `pop/happy` user **purely on energy proximity** — it is a funk/playful song that matches neither the requested genre nor mood. This exposes a bias toward middle-of-the-road energy values: because most songs in the catalog cluster between 0.28 and 0.97, a user with an average energy target (~0.5) is "close" to nearly everything and gets a smooth, undifferentiated list, while genre and mood — the things the user actually named — get drowned out. In short, the continuous energy signal makes the system reluctant to ever truly reject a song, which quietly undermines the exact preferences it is supposed to honor.
 
 ---
 
