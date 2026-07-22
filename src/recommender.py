@@ -51,6 +51,28 @@ class Recommender:
 INTEGER_FIELDS = ["id"]
 FLOAT_FIELDS = ["energy", "tempo_bpm", "valence", "danceability", "acousticness"]
 
+# Scoring weights from the README "Algorithm Recipe" (100 points total).
+# Defined once at module level so they are not rebuilt on every score_song()
+# call, and so they live in one obvious place if you want to tune them.
+MOOD_POINTS = 35
+GENRE_POINTS = 30
+ENERGY_POINTS = 25
+ACOUSTIC_POINTS = 10
+
+# A song counts as "acoustic" at or above this acousticness value.
+ACOUSTIC_THRESHOLD = 0.5
+
+
+def _same_text(a, b) -> bool:
+    """
+    Compare two text values fairly: ignore surrounding spaces and letter
+    case, so "Pop", "pop ", and "pop" all count as the same thing.
+    Returns False if either value is missing.
+    """
+    if a is None or b is None:
+        return False
+    return str(a).strip().lower() == str(b).strip().lower()
+
 
 def load_songs(csv_path: str) -> List[Dict]:
     """
@@ -100,12 +122,6 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     Returns a tuple: (total_score, reasons) where reasons is a list of short
     plain-language strings explaining where the points came from.
     """
-    # Point weights, kept as named constants so they are easy to read and tweak.
-    MOOD_POINTS = 35
-    GENRE_POINTS = 30
-    ENERGY_POINTS = 25
-    ACOUSTIC_POINTS = 10
-
     # The user's preferences can arrive with different key names, so we look
     # up both the README style ("favorite_genre") and the main.py style
     # ("genre"). If neither is present we get None and simply skip that signal.
@@ -119,14 +135,15 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     reasons: List[str] = []
 
     # --- Mood match (35 points) -------------------------------------------
-    # Full points only when the song's mood exactly equals the user's mood.
-    if favorite_mood is not None and song.get("mood") == favorite_mood:
+    # Full points only when the song's mood equals the user's mood
+    # (ignoring case and spacing, so "Happy" still matches "happy").
+    if _same_text(song.get("mood"), favorite_mood):
         score += MOOD_POINTS
         reasons.append(f"matches your {favorite_mood} mood (+{MOOD_POINTS})")
 
     # --- Genre match (30 points) ------------------------------------------
     # Kept just below mood so genre does not dominate on a small catalog.
-    if favorite_genre is not None and song.get("genre") == favorite_genre:
+    if _same_text(song.get("genre"), favorite_genre):
         score += GENRE_POINTS
         reasons.append(f"is {favorite_genre}, your favorite genre (+{GENRE_POINTS})")
 
@@ -137,10 +154,9 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     if target_energy is not None and isinstance(song_energy, (int, float)):
         # Energy values live on a 0.0 - 1.0 scale, so the gap is 0.0 - 1.0 too.
         difference = abs(target_energy - song_energy)
-        energy_score = ENERGY_POINTS * (1 - difference)
-        # Never award negative points if the values are far apart.
-        if energy_score < 0:
-            energy_score = 0
+        # max(0, ...) keeps the score from ever going negative when the
+        # values are far apart, in one clear step.
+        energy_score = max(0, ENERGY_POINTS * (1 - difference))
         score += energy_score
         reasons.append(f"energy is close to your target (+{energy_score:.1f})")
 
@@ -149,7 +165,7 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     # preference. A song counts as acoustic when acousticness >= 0.5.
     acousticness = song.get("acousticness")
     if likes_acoustic is not None and isinstance(acousticness, (int, float)):
-        song_is_acoustic = acousticness >= 0.5
+        song_is_acoustic = acousticness >= ACOUSTIC_THRESHOLD
         # Award points when the song's acoustic-ness matches the preference
         # (acoustic song for someone who likes acoustic, or vice versa).
         if song_is_acoustic == likes_acoustic:
