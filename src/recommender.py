@@ -180,7 +180,21 @@ def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tup
     Functional implementation of the recommendation logic.
     Required by src/main.py
     """
-    # Score every song one at a time and collect (song, score, explanation).
+    # --- Guard the inputs so the function never crashes -------------------
+    # If there are no songs to rank, there is nothing to recommend.
+    if not songs:
+        return []
+    # Asking for zero or fewer results should give back an empty list.
+    if k <= 0:
+        return []
+
+    # The user's target energy is used below as a smart tie-breaker, so we
+    # read it once here (supporting both the README and main.py key names).
+    target_energy = user_prefs.get("target_energy", user_prefs.get("energy"))
+
+    # --- PROCESS: score every song one at a time -------------------------
+    # For each song we keep the song itself, its score, and a human-readable
+    # explanation of where the points came from.
     scored = []
     for song in songs:
         score, reasons = score_song(user_prefs, song)
@@ -192,11 +206,31 @@ def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tup
         else:
             explanation = "No strong matches, but here it is anyway"
 
-        scored.append((song, score, explanation))
+        # Measure how far this song's energy is from the user's target.
+        # Smaller gap = better match. We use this to break score ties below.
+        # If we can't compare energy (missing target or value), we treat the
+        # gap as "very large" so those songs lose ties instead of winning them.
+        song_energy = song.get("energy")
+        if target_energy is not None and isinstance(song_energy, (int, float)):
+            energy_gap = abs(target_energy - song_energy)
+        else:
+            energy_gap = float("inf")
 
-    # Sort from highest score to lowest so the best matches come first.
-    # key=lambda item: item[1] means "sort by the score (the 2nd item)".
-    scored.sort(key=lambda item: item[1], reverse=True)
+        scored.append((song, score, explanation, energy_gap))
 
-    # Return only the top k results so the user sees the best matches.
-    return scored[:k]
+    # --- OUTPUT: rank from best to worst ---------------------------------
+    # We sort by three things, in order, so the ranking is both meaningful
+    # and perfectly repeatable even when songs tie (common on this small
+    # catalog):
+    #   1. score, highest first  -> the main ranking
+    #   2. energy_gap, smallest first -> README's intended tie-breaker:
+    #      among equal-score songs, prefer the one closest to target energy
+    #   3. title, A-Z -> final fallback so the order never changes run to run
+    # Python sorts ascending, so we negate the score to get "highest first".
+    scored.sort(
+        key=lambda item: (-item[1], item[3], str(item[0].get("title", "")).lower())
+    )
+
+    # Return only the top k results, dropping the internal energy_gap value
+    # so callers still get the expected (song, score, explanation) tuples.
+    return [(song, score, explanation) for song, score, explanation, _ in scored[:k]]
