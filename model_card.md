@@ -2,60 +2,91 @@
 
 ## 1. Model Name  
 
-Give your model a short, descriptive name.  
-Example: **VibeFinder 1.0**  
+**VibeScout 1.0** — it scouts a small song catalog for the tunes that best match
+your vibe.
 
 ---
 
 ## 2. Intended Use  
 
-Describe what your recommender is designed to do and who it is for. 
+**Goal / task.** VibeScout takes a user's taste profile and suggests songs from
+a fixed catalog. It predicts which songs a person is most likely to enjoy. It
+ranks the whole catalog and returns the top 5. It also explains, in plain words,
+why each song was picked.
 
-Prompts:  
+**What it is for.** This is a classroom project for learning how recommenders
+turn data into suggestions. It is meant for exploring and experimenting, not for
+real listeners. It assumes the user can describe their taste as a genre, a mood,
+a target energy level, and whether they like acoustic music.
 
-- What kind of recommendations does it generate  
-- What assumptions does it make about the user  
-- Is this for real users or classroom exploration  
+**What it should not be used for.** It should not be used as a real music app or
+to make decisions that matter to people. It only knows the 20 songs in its file.
+It does not learn from listening history, and it does not understand lyrics,
+culture, or context. Do not treat its picks as expert or personalized advice.
 
 ---
 
 ## 3. How the Model Works  
 
-Explain your scoring approach in simple language.  
+The model gives each song a score out of 100 points. It looks at four things and
+adds up the points. Then it sorts the songs from highest to lowest score.
 
-Prompts:  
+Here are the four rules (the baseline weights):
 
-- What features of each song are used (genre, energy, mood, etc.)  
-- What user preferences are considered  
-- How does the model turn those into a score  
-- What changes did you make from the starter logic  
+- **Mood — 35 points.** The song gets the full 35 if its mood matches yours. If
+  not, it gets 0. Mood counts the most.
+- **Genre — 30 points.** The song gets 30 if its genre matches yours. If not, 0.
+- **Energy — up to 25 points.** This one is not all-or-nothing. The closer the
+  song's energy is to your target, the more points it keeps. A perfect match
+  gets almost all 25; a big gap gets very few.
+- **Acoustic — 10 points.** Only counts if you said whether you like acoustic
+  music. If the song matches your choice, it gets 10.
 
-Avoid code here. Pretend you are explaining the idea to a friend who does not program.
+If two songs tie, the one with energy closer to your target wins. After that,
+songs are ordered by title (A to Z).
+
+I did run one experiment where I doubled the energy weight to 50 and halved the
+genre weight to 15, just to see how much the ranking would move. The baseline
+rules above are the main design.
 
 ---
 
 ## 4. Data  
 
-Describe the dataset the model uses.  
+The data is one small file called `songs.csv`. It has **20 songs**. Each song
+has 10 columns.
 
-Prompts:  
+Each song lists: an id, a title, an artist, a genre, a mood, and four number
+features — energy, tempo (bpm), valence (how happy it sounds), danceability, and
+acousticness. Right now the model only uses genre, mood, energy, and
+acousticness. Tempo, valence, and danceability sit in the file but are not
+scored.
 
-- How many songs are in the catalog  
-- What genres or moods are represented  
-- Did you add or remove data  
-- Are there parts of musical taste missing in the dataset  
+The catalog is very mixed. There are about 15 genres, from pop and lofi to metal
+and classical. Almost every song has a different mood. I used the starter data
+as-is and did not add or remove songs.
+
+Because the catalog is so small and spread out, most genres and moods appear
+only once or twice. That means a lot of real tastes are missing. A user can also
+ask for a mood or genre that simply is not in the file, and the model has no way
+to fill that gap.
 
 ---
 
 ## 5. Strengths  
 
-Where does your system seem to work well  
+It works best for clear, mainstream tastes. If a user asks for a genre and mood
+that exist in the catalog, the top pick is usually spot-on. For example, a
+"happy pop" user gets "Sunrise City," which is exactly a happy pop song.
 
-Prompts:  
+The energy dial also works well. Turn it up and the list fills with loud, fast
+songs. Turn it down and the list turns calm and quiet. That matched my intuition
+every time.
 
-- User types for which it gives reasonable results  
-- Any patterns you think your scoring captures correctly  
-- Cases where the recommendations matched your intuition  
+The best part is that every pick comes with a plain-language reason. You can
+always see why a song was chosen, like "matches your happy mood" or "energy is
+close to your target." Nothing is hidden. It never crashes on a normal profile,
+and it gives a clean answer even when a user leaves fields blank.
 
 ---
 
@@ -67,38 +98,110 @@ The biggest weakness I found is that the **energy score gives partial credit to 
 
 ## 7. Evaluation  
 
-How you checked whether the recommender behaved as expected. 
+I checked the recommender by hand-running a set of user profiles through it and
+reading the top-5 lists, using the baseline weights (mood 35, genre 30, energy
+25, acoustic 10). I deliberately included some "trick" profiles designed to
+confuse the scorer. The profiles I tested were:
 
-Prompts:  
+- **Happy Pop** — `genre=pop, mood=happy, energy=0.8` (the normal example user)
+- **Sad but high-energy** — `genre=pop, mood=sad, energy=0.9` (conflicting taste)
+- **Calm & acoustic** — `mood=chill, energy=0.95, likes_acoustic=True`
+- **Impossible request** — `genre=polka, mood=triumphant, energy=0.5` (values not in the catalog)
+- **Energy-only 0.5** vs **Energy-only 0.635** (two almost-identical dials)
+- **Empty profile** — `{}` (no preferences at all)
 
-- Which user profiles you tested  
-- What you looked for in the recommendations  
-- What surprised you  
-- Any simple tests or comparisons you ran  
+**What surprised me most:** the system almost never says a firm "no." Because
+energy always gives partial credit, even a profile that matched *nothing* on
+genre or mood still produced a confident-looking ranked list. I also learned
+that a preference the catalog doesn't contain (like the mood "sad") is silently
+ignored — the user is asking for something real, but the scorer acts as if they
+said nothing.
 
-No need for numeric metrics unless you created some.
+### Why "Gym Hero" keeps showing up for a "Happy Pop" user
+
+Think of the scorer as a checklist, not a music critic. For the Happy Pop user,
+"Gym Hero" ranked #3 because it ticked two of the boxes they asked for: it **is
+pop** (so it earns the genre points) and its **energy (0.93) is close to the
+requested 0.8** (so it earns most of the energy points). The one box it misses
+is mood — "Gym Hero" is an *intense* workout track, not a *happy* one. But the
+system has no way to know that an aggressive gym anthem feels wrong to someone
+who wanted something cheerful; it only sees "pop ✓, high-energy ✓" and assumes
+that is good enough. So the song keeps surfacing not because it's a mistake in
+the code, but because the code is doing exactly what it was told — it just
+wasn't told that mood matters more than raw energy to a happy listener.
+
+### Profile comparisons (what changed, and why it makes sense)
+
+- **Happy Pop vs. Sad-high-energy:** Happy Pop puts "Sunrise City" (pop/happy)
+  on top, but flipping the mood to "sad" while raising energy to 0.9 pushes
+  "Gym Hero" (pop/intense) to #1 instead. This makes sense: "sad" doesn't exist
+  in the catalog, so that request is thrown away, and the high energy number
+  then pulls the most intense songs to the top. The user asked for sad and got
+  aggressive — a clear sign that a conflicting profile confuses the system.
+
+- **Sad-high-energy vs. Calm & acoustic:** these are opposites, and the outputs
+  are opposites too. The high-energy profile fills the top with loud, fast
+  songs (rock, edm, k-pop), while the calm/acoustic profile shifts entirely to
+  gentle low-energy tracks like "Midnight Coding" and "Library Rain" (lofi).
+  This is the behavior working correctly — the energy dial really does move the
+  list from "high-octane" to "quiet background music."
+
+- **Energy-only 0.5 vs. Energy-only 0.635:** I expected a tiny change to barely
+  matter, but nudging the energy target by about a tenth completely reshuffled
+  the top 5 and changed which song was #1. This shows that when energy is the
+  *only* thing scoring, the ranking becomes fragile and almost arbitrary —
+  small input wiggles cause big output swings.
+
+- **Impossible request vs. Empty profile:** asking for `polka / triumphant / 0.5`
+  (none of which exist in the data) produced the **same** list as giving no
+  preferences at all. This makes sense given how the code works — unmatched
+  words score zero — but it's a real limitation: the system can't tell the
+  difference between a picky user it failed and a user who said nothing.
+
+Overall the outputs are *valid* in the sense that they follow the rules
+faithfully, but the trick profiles show the rules don't always match human
+intuition, especially when a stated preference isn't in the catalog.
 
 ---
 
 ## 8. Future Work  
 
-Ideas for how you would improve the model next.  
+If I kept building this, here are three things I would change:
 
-Prompts:  
+1. **Give partial credit for close matches.** Right now "indie pop" earns zero
+   against "pop." I would let similar genres and moods share some points, so
+   near-misses are not treated as total strikes.
 
-- Additional features or preferences  
-- Better ways to explain recommendations  
-- Improving diversity among the top results  
-- Handling more complex user tastes  
+2. **Add a variety rule to the top 5.** The list can fill up with very similar
+   songs. I would make sure the top picks include some range instead of three
+   near-identical tracks.
+
+3. **Use the features I am ignoring.** Tempo, valence, and danceability are just
+   sitting in the file. I would score them too, so a user could ask for
+   something like "danceable" or "upbeat" and actually get it.
 
 ---
 
 ## 9. Personal Reflection  
 
-A few sentences about your experience.  
+I learned that a recommender is really just a scoring rule plus a sort. There is
+no magic. The system only knows what you tell it and what is in its data.
 
-Prompts:  
+The most interesting thing was how much the weights matter. Small changes to the
+points moved the results in big ways, and the system happily gave confident
+answers even when the request made no sense to a human.
 
-- What you learned about recommender systems  
-- Something unexpected or interesting you discovered  
-- How this changed the way you think about music recommendation apps  
+This changed how I see apps like Spotify. Now I think about what data they have,
+what they choose to weigh, and what they might be leaving out. A recommendation
+is a guess shaped by choices someone made — not a fact.
+
+### Reflection on the engineering process
+
+This was a pretty interesting project, and I really enjoyed working on it. This
+time I decided to spend more time on every part instead of rushing. I kept
+checking and modifying the code until I got the best result I could. I also
+tested trick profiles and compared the outputs to make sure the system really
+behaved the way I expected. Along the way I used AI as a tool to explain the
+scoring math, catch edge cases, and try out changes quickly — and I think I used
+it well, as a helper to understand and improve my work rather than to do it for
+me.
