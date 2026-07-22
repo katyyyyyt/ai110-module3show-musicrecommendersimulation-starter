@@ -145,7 +145,7 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     # Kept just below mood so genre does not dominate on a small catalog.
     if _same_text(song.get("genre"), favorite_genre):
         score += GENRE_POINTS
-        reasons.append(f"is {favorite_genre}, your favorite genre (+{GENRE_POINTS})")
+        reasons.append(f"matches your favorite genre {favorite_genre} (+{GENRE_POINTS})")
 
     # --- Energy closeness (up to 25 points) -------------------------------
     # This is a continuous score: the closer the song's energy is to the
