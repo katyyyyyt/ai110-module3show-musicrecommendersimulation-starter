@@ -9,7 +9,21 @@ You will implement the functions in recommender.py:
 - recommend_songs
 """
 
-from recommender import load_songs, recommend_songs
+# Import the recommender functions in a way that works no matter how the
+# script is launched:
+#   - "python -m src.main"  (from the project root) uses the relative import
+#   - "python main.py"      (from inside src/) uses the plain import
+try:
+    from .recommender import load_songs, recommend_songs
+except ImportError:
+    from recommender import load_songs, recommend_songs
+
+# Build an absolute path to the CSV based on THIS file's location, so the
+# script finds the data no matter which folder you run it from.
+# __file__ is .../src/main.py, so its parent's parent is the project root.
+from pathlib import Path
+
+SONGS_CSV = Path(__file__).resolve().parent.parent / "data" / "songs.csv"
 
 
 # The explanation string from the recommender looks like:
@@ -32,7 +46,7 @@ def explanation_to_reasons(explanation: str):
 
 
 def main() -> None:
-    songs = load_songs("data/songs.csv")
+    songs = load_songs(str(SONGS_CSV))
 
     # Starter example profile
     user_prefs = {"genre": "pop", "mood": "happy", "energy": 0.8}
