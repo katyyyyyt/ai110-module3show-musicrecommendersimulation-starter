@@ -93,18 +93,48 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Sample Recommendation Output
 
-Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
+Below is real terminal output from running `python -m src.main` with the
+example profile `genre=pop, mood=happy, energy=0.8`:
 
 ```
-# e.g.:
-# User profile: genre=indie, mood=chill, energy=low
-# Recommendations:
-#   1. ...
-#   2. ...
-#   3. ...
-```
+====================================================
+                  MUSIC RECOMMENDER
+====================================================
+  Loaded 20 songs from the catalog
+  Your taste: genre=pop, mood=happy, energy=0.8
+====================================================
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
+  Top 5 recommendations for you:
+
+  1. Sunrise City  -  Neon Echo
+     Score:  89.50 / 100
+     Why:
+       - matches your happy mood (+35)
+       - matches your favorite genre pop (+30)
+       - energy is close to your target (+24.5)
+
+  2. Rooftop Lights  -  Indigo Parade
+     Score:  59.00 / 100
+     Why:
+       - matches your happy mood (+35)
+       - energy is close to your target (+24.0)
+
+  3. Gym Hero  -  Max Pulse
+     Score:  51.75 / 100
+     Why:
+       - matches your favorite genre pop (+30)
+       - energy is close to your target (+21.8)
+
+  4. Velvet Groove  -  The Slick Six
+     Score:  25.00 / 100
+     Why:
+       - energy is close to your target (+25.0)
+
+  5. Night Drive Loop  -  Neon Echo
+     Score:  23.75 / 100
+     Why:
+       - energy is close to your target (+23.8)
+```
 
 ---
 
